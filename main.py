@@ -31,6 +31,14 @@ chat_manager = ChatManager()
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# 挂载assets目录以支持视频文件访问
+assets_path = os.path.join(os.getcwd(), "assets")
+if os.path.exists(assets_path):
+    print(f"📁 挂载assets目录: {assets_path}")
+    app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
+else:
+    print(f"❌ assets目录不存在: {assets_path}")
+
 @app.get("/")
 async def root():
     """返回主页HTML"""
@@ -54,72 +62,116 @@ async def root():
             
             body {
                 font-family: 'Noto Sans SC', sans-serif;
-                background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 25%, #fecfef 75%, #ff9a9e 100%);
                 min-height: 100vh;
                 display: flex;
-                align-items: center;
+                align-items: flex-start;
                 justify-content: center;
                 padding: 20px;
-            }
-            
-            .container {
-                background: rgba(255, 255, 255, 0.95);
-                border-radius: 25px;
-                padding: 40px;
-                box-shadow: 0 20px 60px rgba(255, 154, 158, 0.3);
-                backdrop-filter: blur(10px);
-                max-width: 900px;
-                width: 100%;
                 position: relative;
-                overflow: hidden;
+                overflow-x: hidden;
+                overflow-y: auto;
+                /* 添加默认背景，避免视频加载时的空白 */
+                background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 25%, #fecfef 75%, #ff9a9e 100%);
             }
             
-            .container::before {
-                content: '';
-                position: absolute;
+            /* 视频背景 */
+            .video-background {
+                position: fixed;
                 top: 0;
                 left: 0;
-                right: 0;
-                height: 5px;
-                background: linear-gradient(90deg, #ff9a9e, #fecfef, #ff9a9e);
-                border-radius: 25px 25px 0 0;
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                z-index: -1;
+            }
+            
+            /* 主内容区域 */
+            .main-content {
+                position: relative;
+                z-index: 1;
+                max-width: 900px;
+                width: 100%;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 15px;
+                padding: 20px 0;
+                margin-top: 20px;
+                margin-bottom: 20px;
             }
             
             .header {
                 text-align: center;
-                margin-bottom: 30px;
+                margin-bottom: 20px;
                 position: relative;
             }
             
             .title {
                 font-size: 2.5em;
                 font-weight: 700;
-                background: linear-gradient(45deg, #ff6b9d, #c44569);
+                background: linear-gradient(90deg, #ffb6ea, #b28dff, #ffb6ea, #fcb1ff, #b28dff, #ffb6ea);
+                background-size: 300% 300%;
                 -webkit-background-clip: text;
                 -webkit-text-fill-color: transparent;
                 background-clip: text;
-                margin-bottom: 10px;
-                text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                animation: gradientMove 8s ease-in-out infinite;
+                position: relative;
+                text-align: center;
+            }
+            @keyframes gradientMove {
+                0% { background-position: 0% 50%; }
+                50% { background-position: 100% 50%; }
+                100% { background-position: 0% 50%; }
+            }
+            .title::before,
+            .title::after {
+                content: '🌸';
+                display: inline-block;
+                margin: 0 12px;
+                font-size: 1.1em;
+                animation: flowerDance 4s ease-in-out infinite;
+            }
+            .title::after {
+                animation-delay: 2s;
+            }
+            @keyframes flowerDance {
+                0%, 100% { transform: rotate(0deg) scale(1); }
+                20% { transform: rotate(-15deg) scale(1.1); }
+                50% { transform: rotate(0deg) scale(1.2); }
+                80% { transform: rotate(15deg) scale(1.1); }
+            }
+            
+            @keyframes gradientShift {
+                0% {
+                    background-position: 0% 50%;
+                }
+                50% {
+                    background-position: 100% 50%;
+                }
+                100% {
+                    background-position: 0% 50%;
+                }
             }
             
             .subtitle {
-                color: #666;
+                color: white;
                 font-size: 1.1em;
                 font-weight: 300;
                 margin-bottom: 20px;
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
             }
             
             .chat-container {
-                height: 450px;
-                border: 2px solid #ffe0e6;
+                height: 400px;
+                width: 800px;
+                border: none;
                 border-radius: 20px;
                 padding: 20px;
                 overflow-y: auto;
-                margin-bottom: 25px;
-                background: linear-gradient(135deg, #fff5f7 0%, #fff 100%);
-                box-shadow: inset 0 2px 10px rgba(255, 154, 158, 0.1);
+                margin-bottom: 20px;
+                background: transparent;
                 scrollbar-width: thin;
-                scrollbar-color: #ff9a9e #fff5f7;
+                scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
             }
             
             .chat-container::-webkit-scrollbar {
@@ -127,12 +179,12 @@ async def root():
             }
             
             .chat-container::-webkit-scrollbar-track {
-                background: #fff5f7;
+                background: rgba(255, 255, 255, 0.1);
                 border-radius: 4px;
             }
             
             .chat-container::-webkit-scrollbar-thumb {
-                background: #ff9a9e;
+                background: rgba(255, 255, 255, 0.3);
                 border-radius: 4px;
             }
             
@@ -162,21 +214,21 @@ async def root():
             }
             
             .user-message {
-                background: linear-gradient(135deg, #ff6b9d, #c44569);
+                background: linear-gradient(135deg, #e91e63, #9c27b0);
                 color: white;
                 margin-left: auto;
                 margin-right: 0;
                 text-align: right;
-                box-shadow: 0 4px 15px rgba(255, 107, 157, 0.3);
+                box-shadow: 0 4px 15px rgba(233, 30, 99, 0.3);
                 float: right;
                 clear: both;
             }
             
             .ai-message {
-                background: linear-gradient(135deg, #fff, #f8f9ff);
+                background: rgba(255, 255, 255, 0.9);
                 color: #333;
-                border: 1px solid #ffe0e6;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
                 margin-right: auto;
                 margin-left: 0;
                 text-align: left;
@@ -194,45 +246,56 @@ async def root():
             }
             
             .input-container {
-                display: flex;
-                gap: 15px;
-                margin-bottom: 25px;
-                align-items: flex-start;
+                display: flex !important;
+                gap: 15px !important;
+                margin-bottom: 25px !important;
+                align-items: flex-start !important;
+                width: 100% !important;
+                max-width: 900px !important;
+                position: relative !important;
+                z-index: 10 !important;
+                opacity: 1 !important;
+                visibility: visible !important;
+                background: rgba(255, 255, 255, 0.1) !important;
+                padding: 10px !important;
+                border-radius: 15px !important;
             }
             
             .button-group {
                 display: flex;
                 flex-direction: column;
                 gap: 10px;
+                position: relative;
+                z-index: 10;
             }
             
             input[type="text"] {
                 flex: 1;
                 padding: 18px 25px;
-                border: 2px solid #ffe0e6;
+                border: 2px solid rgba(255, 255, 255, 0.3);
                 border-radius: 25px;
                 font-size: 16px;
-                background: white;
+                background: rgba(255, 255, 255, 0.9);
                 transition: all 0.3s ease;
-                box-shadow: 0 2px 10px rgba(255, 154, 158, 0.1);
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             }
             
             input[type="text"]:focus {
                 outline: none;
-                border-color: #ff6b9d;
-                box-shadow: 0 0 0 3px rgba(255, 107, 157, 0.1);
+                border-color: #e91e63;
+                box-shadow: 0 0 0 3px rgba(233, 30, 99, 0.1);
                 transform: translateY(-2px);
             }
             
             textarea {
                 flex: 1;
                 padding: 18px 25px;
-                border: 2px solid #ffe0e6;
+                border: 2px solid rgba(255, 255, 255, 0.3);
                 border-radius: 25px;
                 font-size: 16px;
-                background: white;
+                background: rgba(255, 255, 255, 0.9);
                 transition: all 0.3s ease;
-                box-shadow: 0 2px 10px rgba(255, 154, 158, 0.1);
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
                 resize: vertical;
                 min-height: 60px;
                 max-height: 120px;
@@ -243,8 +306,8 @@ async def root():
             
             textarea:focus {
                 outline: none;
-                border-color: #ff6b9d;
-                box-shadow: 0 0 0 3px rgba(255, 107, 157, 0.1);
+                border-color: #e91e63;
+                box-shadow: 0 0 0 3px rgba(233, 30, 99, 0.1);
                 transform: translateY(-2px);
             }
             
@@ -253,18 +316,18 @@ async def root():
             }
             
             textarea::-webkit-scrollbar-track {
-                background: #fff5f7;
+                background: rgba(255, 255, 255, 0.1);
                 border-radius: 3px;
             }
             
             textarea::-webkit-scrollbar-thumb {
-                background: #ff9a9e;
+                background: rgba(255, 255, 255, 0.3);
                 border-radius: 3px;
             }
             
             .send-btn {
                 padding: 18px 30px;
-                background: linear-gradient(135deg, #ff6b9d, #c44569);
+                background: linear-gradient(135deg, #e91e63, #9c27b0);
                 color: white;
                 border: none;
                 border-radius: 25px;
@@ -272,7 +335,7 @@ async def root():
                 font-size: 16px;
                 font-weight: 500;
                 transition: all 0.3s ease;
-                box-shadow: 0 4px 15px rgba(255, 107, 157, 0.3);
+                box-shadow: 0 4px 15px rgba(233, 30, 99, 0.3);
                 display: flex;
                 align-items: center;
                 gap: 8px;
@@ -280,7 +343,7 @@ async def root():
             
             .send-btn:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 6px 20px rgba(255, 107, 157, 0.4);
+                box-shadow: 0 6px 20px rgba(233, 30, 99, 0.4);
             }
             
             .send-btn:active {
@@ -289,7 +352,7 @@ async def root():
             
             .voice-btn {
                 padding: 18px 20px;
-                background: linear-gradient(135deg, #4ecdc4, #44a08d);
+                background: linear-gradient(135deg, #673ab7, #3f51b5);
                 color: white;
                 border: none;
                 border-radius: 25px;
@@ -297,7 +360,7 @@ async def root():
                 font-size: 16px;
                 font-weight: 500;
                 transition: all 0.3s ease;
-                box-shadow: 0 4px 15px rgba(78, 205, 196, 0.3);
+                box-shadow: 0 4px 15px rgba(103, 58, 183, 0.3);
                 display: flex;
                 align-items: center;
                 gap: 8px;
@@ -305,7 +368,7 @@ async def root():
             
             .voice-btn:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 6px 20px rgba(78, 205, 196, 0.4);
+                box-shadow: 0 6px 20px rgba(103, 58, 183, 0.4);
             }
             
             .voice-btn:active {
@@ -313,7 +376,7 @@ async def root():
             }
             
             .voice-btn.recording {
-                background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+                background: linear-gradient(135deg, #f44336, #d32f2f);
                 animation: pulse 1.5s infinite;
             }
             
@@ -343,38 +406,47 @@ async def root():
                 gap: 15px;
                 justify-content: center;
                 flex-wrap: wrap;
+                position: relative;
+                z-index: 10;
+                margin-top: 20px;
             }
             
             .control-btn {
                 padding: 12px 24px;
-                background: linear-gradient(135deg, #f8f9ff, #fff);
-                color: #666;
-                border: 2px solid #ffe0e6;
+                background: linear-gradient(135deg, #e91e63, #9c27b0);
+                color: white;
+                border: none;
                 border-radius: 20px;
                 cursor: pointer;
                 font-size: 14px;
                 font-weight: 500;
                 transition: all 0.3s ease;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+                box-shadow: 0 4px 15px rgba(233, 30, 99, 0.3);
             }
             
             .control-btn:hover {
-                background: linear-gradient(135deg, #ff6b9d, #c44569);
-                color: white;
-                border-color: #ff6b9d;
                 transform: translateY(-2px);
-                box-shadow: 0 4px 15px rgba(255, 107, 157, 0.3);
+                box-shadow: 0 6px 20px rgba(233, 30, 99, 0.4);
             }
             
             .status {
                 text-align: center;
                 margin-top: 25px;
                 padding: 15px;
-                background: linear-gradient(135deg, #fff5f7, #fff);
+                background: rgba(255, 255, 255, 0.9);
                 border-radius: 15px;
-                border: 1px solid #ffe0e6;
+                border: 1px solid rgba(255, 255, 255, 0.3);
                 color: #666;
                 font-size: 14px;
+                opacity: 0;
+                transform: translateY(20px);
+                transition: all 0.5s ease;
+                pointer-events: none;
+            }
+            
+            .status.show {
+                opacity: 1;
+                transform: translateY(0);
             }
             
             .audio-controls {
@@ -383,7 +455,7 @@ async def root():
             }
             
             .audio-btn {
-                background: linear-gradient(135deg, #ff6b9d, #c44569);
+                background: linear-gradient(135deg, #e91e63, #9c27b0);
                 color: white;
                 border: none;
                 border-radius: 15px;
@@ -392,12 +464,12 @@ async def root():
                 cursor: pointer;
                 font-size: 12px;
                 transition: all 0.3s ease;
-                box-shadow: 0 2px 10px rgba(255, 107, 157, 0.2);
+                box-shadow: 0 2px 10px rgba(233, 30, 99, 0.2);
             }
             
             .audio-btn:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 4px 15px rgba(255, 107, 157, 0.3);
+                box-shadow: 0 4px 15px rgba(233, 30, 99, 0.3);
             }
             
             .audio-btn:active {
@@ -407,19 +479,19 @@ async def root():
             .loading {
                 display: none;
                 text-align: center;
-                color: #ff6b9d;
+                color: #e91e63;
                 font-style: italic;
                 margin: 10px 0;
             }
             
             .typing-indicator {
                 padding: 15px 20px;
-                background: linear-gradient(135deg, #fff, #f8f9ff);
+                background: rgba(255, 255, 255, 0.9);
                 border-radius: 20px;
                 color: #666;
                 font-style: italic;
                 margin-bottom: 20px;
-                border: 1px solid #ffe0e6;
+                border: 1px solid rgba(255, 255, 255, 0.3);
                 max-width: 85%;
                 min-width: 60px;
                 width: fit-content;
@@ -453,17 +525,6 @@ async def root():
                 40% { content: "爱莉正在输入中."; }
                 60% { content: "爱莉正在输入中.."; }
                 80%, 100% { content: "爱莉正在输入中..."; }
-            }
-            
-            .welcome-message {
-                text-align: center;
-                color: #666;
-                font-style: italic;
-                margin-bottom: 20px;
-                padding: 20px;
-                background: linear-gradient(135deg, #fff5f7, #fff);
-                border-radius: 15px;
-                border: 1px solid #ffe0e6;
             }
             
             .history-modal {
@@ -505,7 +566,7 @@ async def root():
             .history-title {
                 font-size: 1.5em;
                 font-weight: 600;
-                color: #ff6b9d;
+                color: #e91e63;
             }
             
             .close-btn {
@@ -521,7 +582,7 @@ async def root():
             
             .close-btn:hover {
                 background: #ffe0e6;
-                color: #ff6b9d;
+                color: #e91e63;
             }
             
             .history-item {
@@ -536,13 +597,13 @@ async def root():
             
             .history-item:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 5px 15px rgba(255, 107, 157, 0.2);
-                border-color: #ff6b9d;
+                box-shadow: 0 5px 15px rgba(233, 30, 99, 0.2);
+                border-color: #e91e63;
             }
             
             .history-date {
                 font-weight: 600;
-                color: #ff6b9d;
+                color: #e91e63;
                 margin-bottom: 5px;
             }
             
@@ -567,12 +628,12 @@ async def root():
             }
             
             .view-btn {
-                background: linear-gradient(135deg, #4ecdc4, #44a08d);
+                background: linear-gradient(135deg, #673ab7, #3f51b5);
                 color: white;
             }
             
             .delete-btn {
-                background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+                background: linear-gradient(135deg, #f44336, #d32f2f);
                 color: white;
             }
             
@@ -582,7 +643,7 @@ async def root():
             }
             
             @media (max-width: 768px) {
-                .container {
+                .main-content {
                     padding: 20px;
                     margin: 10px;
                 }
@@ -593,14 +654,16 @@ async def root():
                 
                 .chat-container {
                     height: 350px;
+                    width: 100%;
                 }
                 
                 .controls {
                     flex-direction: column;
                 }
             }
+            
             .inline-audio-btn {
-                background: linear-gradient(135deg, #ff6b9d, #c44569);
+                background: linear-gradient(135deg, #e91e63, #9c27b0);
                 color: white;
                 border: none;
                 border-radius: 50%;
@@ -613,29 +676,99 @@ async def root():
                 align-items: center;
                 justify-content: center;
                 transition: all 0.3s ease;
-                box-shadow: 0 2px 8px rgba(255, 107, 157, 0.3);
+                box-shadow: 0 2px 8px rgba(233, 30, 99, 0.3);
                 vertical-align: middle;
             }
             
             .inline-audio-btn:hover {
                 transform: scale(1.1);
-                box-shadow: 0 4px 12px rgba(255, 107, 157, 0.4);
+                box-shadow: 0 4px 12px rgba(233, 30, 99, 0.4);
             }
             
             .inline-audio-btn:active {
                 transform: scale(0.95);
             }
+            
+            /* 暗色模式支持 */
+            @media (prefers-color-scheme: dark) {
+                .title {
+                    background: linear-gradient(45deg, #ff6b9d, #c44569);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                }
+                
+                .subtitle {
+                    color: #f8f9fa;
+                }
+                
+                .ai-message {
+                    background: rgba(33, 37, 41, 0.9);
+                    color: #f8f9fa;
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                }
+                
+                .typing-indicator {
+                    background: rgba(33, 37, 41, 0.9);
+                    color: #f8f9fa;
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                }
+                
+                .status {
+                    background: rgba(33, 37, 41, 0.9);
+                    color: #f8f9fa;
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                }
+                
+                input[type="text"], textarea {
+                    background: rgba(33, 37, 41, 0.9);
+                    color: #f8f9fa;
+                    border: 2px solid rgba(255, 255, 255, 0.3);
+                }
+                
+                .history-content {
+                    background: #212529;
+                    color: #f8f9fa;
+                }
+                
+                .history-item {
+                    background: linear-gradient(135deg, #343a40, #212529);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                }
+            }
+            /* 视频加载指示器 */
+            .video-loading {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                color: white;
+                font-size: 18px;
+                z-index: 0;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+                display: none;
+            }
+            
+            .video-loading.show {
+                display: block;
+            }
         </style>
     </head>
     <body>
-        <div class="container">
+        <!-- 视频背景 -->
+        <video class="video-background" id="backgroundVideo" autoplay muted loop>
+            <source id="videoSource" src="" type="video/mp4">
+        </video>
+        
+        <!-- 视频加载指示器 -->
+        <div class="video-loading" id="videoLoading">
+            🎬 正在加载视频背景...
+        </div>
+        
+        <div class="main-content">
             <div class="header">
-                <h1 class="title">🌸 爱莉希雅的化妆间🌸</h1>
-                <p class="subtitle">与爱莉希雅一起度过美好时光</p>
-            </div>
-            
-            <div class="welcome-message">
-                💕 亲爱的，欢迎来到我的秘密基地～有什么想和我聊的吗？
+                <h1 class="title">爱莉希雅的化妆间</h1>
+                <p class="subtitle"></p>
             </div>
             
             <div class="chat-container" id="chatContainer">
@@ -684,8 +817,55 @@ async def root():
         </div>
 
         <script>
-            // 版本号：v1.1 - 强制刷新缓存
-            console.log('🎯 JavaScript已加载 - 版本 v1.1');
+            // 版本号：v1.2 - 添加视频背景功能
+            console.log('🎯 JavaScript已加载 - 版本 v1.2');
+            
+            // 视频背景随机选择
+            function initVideoBackground() {
+                const videos = [
+                    '/assets/videos/elysia1.mp4',
+                    '/assets/videos/elysia2.mp4'
+                ];
+                const randomVideo = videos[Math.floor(Math.random() * videos.length)];
+                const videoElement = document.getElementById('backgroundVideo');
+                const sourceElement = document.getElementById('videoSource');
+                
+                console.log('🎬 尝试加载视频:', randomVideo);
+                
+                // 预加载视频
+                const preloadVideo = new Audio();
+                preloadVideo.src = randomVideo;
+                
+                preloadVideo.addEventListener('canplaythrough', function() {
+                    console.log('✅ 视频预加载完成');
+                    sourceElement.src = randomVideo;
+                    videoElement.load();
+                    
+                    videoElement.onloadeddata = function() {
+                        console.log('✅ 视频加载成功');
+                        // 视频加载成功后，移除body的默认背景
+                        document.body.style.background = 'none';
+                        videoElement.play().catch(error => {
+                            console.log('视频自动播放失败:', error);
+                        });
+                    };
+                    
+                    videoElement.onerror = function() {
+                        console.log('❌ 视频加载失败，保持默认背景');
+                        videoElement.style.display = 'none';
+                    };
+                });
+                
+                preloadVideo.addEventListener('error', function() {
+                    console.log('❌ 视频预加载失败，使用默认背景');
+                    videoElement.style.display = 'none';
+                });
+                
+                console.log('🎬 随机选择视频:', randomVideo);
+            }
+            
+            // 页面加载时初始化视频背景
+            window.addEventListener('load', initVideoBackground);
             
             let currentAudio = null;
             let audioEnabled = true;
@@ -722,7 +902,19 @@ async def root():
                 }
             }
 
-            function addMessageWithAudio(text, audioPath) {
+            // 验证音频文件是否存在
+            async function checkAudioFileExists(audioFile) {
+                try {
+                    const response = await fetch(`/audio/${audioFile}`, { method: 'HEAD' });
+                    return response.ok;
+                } catch (error) {
+                    console.log(`音频文件不存在: ${audioFile}`);
+                    return false;
+                }
+            }
+
+            // 修改addMessageWithAudio函数，添加文件验证
+            async function addMessageWithAudioVerified(text, audioPath) {
                 const container = document.getElementById('chatContainer');
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'message ai-message';
@@ -732,8 +924,11 @@ async def root():
                 textSpan.textContent = text;
                 messageDiv.appendChild(textSpan);
                 
+                // 验证音频文件是否存在
+                const audioExists = await checkAudioFileExists(audioPath);
+                
                 // 添加音频播放按钮（内嵌在文字后面）
-                if (audioPath && audioEnabled) {
+                if (audioPath && audioEnabled && audioExists) {
                     const playButton = document.createElement('button');
                     playButton.className = 'inline-audio-btn';
                     playButton.innerHTML = '🔊';
@@ -779,6 +974,11 @@ async def root():
                     setTimeout(() => {
                         playButton.click();
                     }, 500);
+                } else if (audioPath && !audioExists) {
+                    // 音频文件不存在，添加提示
+                    const noAudioSpan = document.createElement('span');
+                    noAudioSpan.innerHTML = ' <span style="color: #999; font-size: 12px;">(音频文件已丢失)</span>';
+                    messageDiv.appendChild(noAudioSpan);
                 }
                 
                 container.appendChild(messageDiv);
@@ -1000,7 +1200,7 @@ async def root():
                     if (result.success) {
                         if (result.audio_path && audioEnabled) {
                             console.log('🎯 准备添加带音频的消息:', result.audio_path);
-                            addMessageWithAudio(result.text_response, result.audio_path);
+                            await addMessageWithAudioVerified(result.text_response, result.audio_path);
                         } else {
                             addMessage(result.text_response, 'ai');
                         }
@@ -1058,7 +1258,7 @@ async def root():
                     if (result.success) {
                         if (result.audio_path && audioEnabled) {
                             console.log('🎯 准备添加带音频的消息:', result.audio_path);
-                            addMessageWithAudio(result.text_response, result.audio_path);
+                            await addMessageWithAudioVerified(result.text_response, result.audio_path);
                         } else {
                             addMessage(result.text_response, 'ai');
                         }
@@ -1114,9 +1314,23 @@ async def root():
                         statusText += '❌ TTS模型异常 ';
                     }
                     
-                    document.getElementById('status').textContent = statusText;
+                    const statusElement = document.getElementById('status');
+                    statusElement.textContent = statusText;
+                    statusElement.classList.add('show');
+                    
+                    // 3秒后自动隐藏
+                    setTimeout(() => {
+                        statusElement.classList.remove('show');
+                    }, 3000);
                 } catch (error) {
-                    document.getElementById('status').textContent = '无法获取系统状态';
+                    const statusElement = document.getElementById('status');
+                    statusElement.textContent = '无法获取系统状态';
+                    statusElement.classList.add('show');
+                    
+                    // 3秒后自动隐藏
+                    setTimeout(() => {
+                        statusElement.classList.remove('show');
+                    }, 3000);
                 }
             }
 
@@ -1193,8 +1407,15 @@ async def root():
                                 addMessage(result.messages[i].content, 'user');
                             }
                             if (i + 1 < result.messages.length) {
-                                // 添加AI回复（只显示文本，不包含音频）
-                                addMessage(result.messages[i + 1].content, 'ai');
+                                // 添加AI回复，检查是否有音频
+                                const aiMessage = result.messages[i + 1];
+                                if (aiMessage.audio_file) {
+                                    // 有音频文件，添加带音频的消息
+                                    await addMessageWithAudioVerified(aiMessage.content, aiMessage.audio_file);
+                                } else {
+                                    // 没有音频文件，只显示文本
+                                    addMessage(aiMessage.content, 'ai');
+                                }
                             }
                         }
                         
@@ -1234,8 +1455,49 @@ async def root():
             // 页面加载时检查状态
             window.onload = function() {
                 console.log('页面加载完成');
+                
+                // 调试：检查所有重要元素是否存在
+                const elements = [
+                    'chatContainer',
+                    'messageInput',
+                    'voiceBtn',
+                    'send-btn',
+                    'controls'
+                ];
+                
+                elements.forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        console.log(`✅ 元素 ${id} 存在`);
+                    } else {
+                        console.log(`❌ 元素 ${id} 不存在`);
+                    }
+                });
+                
+                // 检查输入容器
+                const inputContainer = document.querySelector('.input-container');
+                if (inputContainer) {
+                    console.log('✅ 输入容器存在');
+                    console.log('输入容器样式:', window.getComputedStyle(inputContainer));
+                } else {
+                    console.log('❌ 输入容器不存在');
+                }
+                
+                // 检查控制按钮
+                const controls = document.querySelector('.controls');
+                if (controls) {
+                    console.log('✅ 控制按钮容器存在');
+                    console.log('控制按钮数量:', controls.children.length);
+                } else {
+                    console.log('❌ 控制按钮容器不存在');
+                }
+                
                 addMessage('嗨，想我了吗？', 'ai');
-                checkStatus();
+                
+                // 初始状态检查，短暂显示后消失
+                setTimeout(() => {
+                    checkStatus();
+                }, 1000);
             };
         </script>
     </body>
@@ -1303,7 +1565,7 @@ async def get_audio(filename: str):
 @app.post("/speech-to-text")
 async def speech_to_text(audio: UploadFile = File(...)):
     """处理语音转文字请求"""
-    try:
+    try {
         print(f"🎤 收到音频文件: {audio.filename}, 大小: {audio.size} bytes")
         
         # 保存音频文件

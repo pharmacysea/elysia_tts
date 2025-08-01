@@ -143,16 +143,31 @@ class ChatManager:
             
             # 添加到对话历史
             self.conversation_history.append({"role": "user", "content": message})
-            self.conversation_history.append({"role": "assistant", "content": response})
             
             # 生成音频
             audio_path = None
+            audio_filename = None
+            timestamp = int(time.time())
+            
             if self.tts_client:
-                audio_filename = f"response_{int(time.time())}.wav"
+                audio_filename = f"response_{timestamp}.wav"
                 audio_path = self.tts_client.text_to_speech(response, audio_filename)
                 # 只返回文件名，不包含路径
                 if audio_path:
                     audio_path = os.path.basename(audio_path)
+            
+            # 保存AI回复，包含音频信息
+            assistant_message = {
+                "role": "assistant", 
+                "content": response
+            }
+            
+            # 如果有音频文件，添加音频信息
+            if audio_filename and audio_path:
+                assistant_message["audio_file"] = audio_filename
+                assistant_message["timestamp"] = timestamp
+            
+            self.conversation_history.append(assistant_message)
             
             # 自动保存聊天记录
             self.save_today_history()
