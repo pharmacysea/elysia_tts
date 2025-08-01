@@ -150,6 +150,9 @@ class ChatManager:
             if self.tts_client:
                 audio_filename = f"response_{int(time.time())}.wav"
                 audio_path = self.tts_client.text_to_speech(response, audio_filename)
+                # 只返回文件名，不包含路径
+                if audio_path:
+                    audio_path = os.path.basename(audio_path)
             
             # 自动保存聊天记录
             self.save_today_history()

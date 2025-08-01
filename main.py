@@ -1,6 +1,6 @@
 import asyncio
 import uvicorn
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +9,8 @@ import os
 from typing import Dict, Any
 from chat_manager import ChatManager
 from config import Config
+import time
+from baidu_speech import BaiduSpeechRecognition
 
 # 创建FastAPI应用
 app = FastAPI(title="爱莉希雅的闺房", description="与爱莉希雅一起度过美好时光的AI对话系统")
@@ -38,6 +40,9 @@ async def root():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+        <meta http-equiv="Pragma" content="no-cache">
+        <meta http-equiv="Expires" content="0">
         <title>爱莉希雅的化妆间</title>
         <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
         <style>
@@ -136,8 +141,13 @@ async def root():
                 padding: 15px 20px;
                 border-radius: 20px;
                 max-width: 85%;
+                min-width: 60px;
+                width: fit-content;
                 position: relative;
                 animation: fadeInUp 0.5s ease-out;
+                word-wrap: break-word;
+                white-space: pre-wrap;
+                display: inline-block;
             }
             
             @keyframes fadeInUp {
@@ -155,8 +165,11 @@ async def root():
                 background: linear-gradient(135deg, #ff6b9d, #c44569);
                 color: white;
                 margin-left: auto;
+                margin-right: 0;
                 text-align: right;
                 box-shadow: 0 4px 15px rgba(255, 107, 157, 0.3);
+                float: right;
+                clear: both;
             }
             
             .ai-message {
@@ -164,6 +177,11 @@ async def root():
                 color: #333;
                 border: 1px solid #ffe0e6;
                 box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+                margin-right: auto;
+                margin-left: 0;
+                text-align: left;
+                float: left;
+                clear: both;
             }
             
             .ai-message::before {
@@ -395,7 +413,6 @@ async def root():
             }
             
             .typing-indicator {
-                display: none;
                 padding: 15px 20px;
                 background: linear-gradient(135deg, #fff, #f8f9ff);
                 border-radius: 20px;
@@ -404,7 +421,17 @@ async def root():
                 margin-bottom: 20px;
                 border: 1px solid #ffe0e6;
                 max-width: 85%;
+                min-width: 60px;
+                width: fit-content;
                 position: relative;
+                margin-right: auto;
+                margin-left: 0;
+                text-align: left;
+                word-wrap: break-word;
+                white-space: pre-wrap;
+                display: inline-block;
+                float: left;
+                clear: both;
             }
             
             .typing-indicator::before {
@@ -422,10 +449,10 @@ async def root():
             }
             
             @keyframes typing {
-                0%, 20% { content: "正在思考"; }
-                40% { content: "正在思考."; }
-                60% { content: "正在思考.."; }
-                80%, 100% { content: "正在思考..."; }
+                0%, 20% { content: "爱莉正在输入中"; }
+                40% { content: "爱莉正在输入中."; }
+                60% { content: "爱莉正在输入中.."; }
+                80%, 100% { content: "爱莉正在输入中..."; }
             }
             
             .welcome-message {
@@ -572,6 +599,32 @@ async def root():
                     flex-direction: column;
                 }
             }
+            .inline-audio-btn {
+                background: linear-gradient(135deg, #ff6b9d, #c44569);
+                color: white;
+                border: none;
+                border-radius: 50%;
+                width: 24px;
+                height: 24px;
+                margin-left: 8px;
+                cursor: pointer;
+                font-size: 12px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.3s ease;
+                box-shadow: 0 2px 8px rgba(255, 107, 157, 0.3);
+                vertical-align: middle;
+            }
+            
+            .inline-audio-btn:hover {
+                transform: scale(1.1);
+                box-shadow: 0 4px 12px rgba(255, 107, 157, 0.4);
+            }
+            
+            .inline-audio-btn:active {
+                transform: scale(0.95);
+            }
         </style>
     </head>
     <body>
@@ -631,10 +684,17 @@ async def root():
         </div>
 
         <script>
+            // 版本号：v1.1 - 强制刷新缓存
+            console.log('🎯 JavaScript已加载 - 版本 v1.1');
+            
             let currentAudio = null;
             let audioEnabled = true;
             let recognition = null;
             let isRecording = false;
+            let mediaRecorder = null;
+            let audioChunks = [];
+            
+            console.log('🎯 变量初始化完成 - isRecording:', isRecording);
 
             function handleKeyPress(event) {
                 if (event.key === 'Enter' && !event.ctrlKey) {
@@ -643,9 +703,314 @@ async def root():
                 }
             }
 
+            function showTypingIndicator() {
+                console.log('🎯 显示思考指示器');
+                const container = document.getElementById('chatContainer');
+                const typingDiv = document.createElement('div');
+                typingDiv.className = 'typing-indicator';
+                typingDiv.id = 'typingIndicator';
+                typingDiv.innerHTML = '<span class="typing-dots">爱莉正在输入中...</span>';
+                container.appendChild(typingDiv);
+                container.scrollTop = container.scrollHeight;
+                console.log('✅ 思考指示器已添加');
+            }
+
+            function hideTypingIndicator() {
+                const typingIndicator = document.getElementById('typingIndicator');
+                if (typingIndicator) {
+                    typingIndicator.remove();
+                }
+            }
+
+            function addMessageWithAudio(text, audioPath) {
+                const container = document.getElementById('chatContainer');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message ai-message';
+                
+                // 创建文字内容
+                const textSpan = document.createElement('span');
+                textSpan.textContent = text;
+                messageDiv.appendChild(textSpan);
+                
+                // 添加音频播放按钮（内嵌在文字后面）
+                if (audioPath && audioEnabled) {
+                    const playButton = document.createElement('button');
+                    playButton.className = 'inline-audio-btn';
+                    playButton.innerHTML = '🔊';
+                    playButton.title = '播放音频';
+                    
+                    // 创建音频对象并存储
+                    const audio = new Audio('/audio/' + audioPath);
+                    let isPlaying = false;
+                    
+                    playButton.onclick = () => {
+                        if (isPlaying) {
+                            // 暂停音频
+                            audio.pause();
+                            playButton.innerHTML = '🔊';
+                            playButton.title = '播放音频';
+                            isPlaying = false;
+                        } else {
+                            // 播放音频
+                            if (currentAudio) {
+                                currentAudio.pause();
+                            }
+                            currentAudio = audio;
+                            audio.play().catch(error => {
+                                console.log('音频播放失败:', error);
+                            });
+                            playButton.innerHTML = '⏸️';
+                            playButton.title = '暂停音频';
+                            isPlaying = true;
+                        }
+                    };
+                    
+                    // 监听音频结束事件
+                    audio.addEventListener('ended', () => {
+                        playButton.innerHTML = '🔊';
+                        playButton.title = '播放音频';
+                        isPlaying = false;
+                    });
+                    
+                    // 将按钮添加到消息div中，紧跟在文字后面
+                    messageDiv.appendChild(playButton);
+                    
+                    // 自动播放
+                    setTimeout(() => {
+                        playButton.click();
+                    }, 500);
+                }
+                
+                container.appendChild(messageDiv);
+                container.scrollTop = container.scrollHeight;
+            }
+
+            function playAudio(audioPath) {
+                if (currentAudio) {
+                    currentAudio.pause();
+                    currentAudio = null;
+                }
+                
+                currentAudio = new Audio(audioPath);
+                currentAudio.play().catch(error => {
+                    console.log('音频播放失败:', error);
+                });
+            }
+
             function toggleVoiceInput() {
-                console.log('语音按钮被点击');
-                addMessage('🎤 语音功能暂时不可用，请使用文本输入', 'ai');
+                try {
+                    console.log('🎤 语音按钮被点击 - 开始调试');
+                    console.log('当前录音状态:', isRecording);
+                    console.log('mediaRecorder状态:', mediaRecorder);
+                    
+                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                        console.log('❌ 浏览器不支持getUserMedia');
+                        addMessage('❌ 您的浏览器不支持语音识别功能', 'ai');
+                        return;
+                    }
+                    
+                    console.log('✅ 浏览器支持getUserMedia，准备开始录音');
+                    console.log('🎤 检查录音状态，isRecording =', isRecording);
+                    
+                    if (isRecording) {
+                        // 停止录音
+                        console.log('🛑 当前正在录音，准备停止');
+                        stopRecording();
+                    } else {
+                        // 开始录音
+                        console.log('🎤 准备开始录音，调用startRecording()');
+                        startRecording();
+                        console.log('🎤 startRecording()调用完成');
+                    }
+                } catch (error) {
+                    console.error('❌ toggleVoiceInput函数出错:', error);
+                    addMessage('❌ 语音功能出现错误: ' + error.message, 'ai');
+                }
+            }
+
+            function startRecording() {
+                console.log('🎤 startRecording函数被调用');
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then(stream => {
+                        console.log('✅ 麦克风权限获取成功，开始录音');
+                        console.log('🎵 音频流获取成功，轨道数量:', stream.getTracks().length);
+                        isRecording = true;
+                        audioChunks = [];
+                        
+                        // 更新按钮状态
+                        const voiceBtn = document.getElementById('voiceBtn');
+                        console.log('🎛️ 准备更新按钮状态');
+                        voiceBtn.innerHTML = '⏹️ 停止';
+                        voiceBtn.style.background = 'linear-gradient(135deg, #ff6b6b, #ee5a52)';
+                        console.log('✅ 按钮状态已更新');
+                        
+                        // 创建录音器
+                        console.log('🎙️ 准备创建MediaRecorder');
+                        mediaRecorder = new MediaRecorder(stream, {
+                            mimeType: 'audio/webm;codecs=opus'
+                        });
+                        console.log('✅ MediaRecorder创建成功');
+                        
+                        mediaRecorder.ondataavailable = (event) => {
+                            console.log('📊 收到音频数据:', event.data.size, 'bytes');
+                            if (event.data.size > 0) {
+                                audioChunks.push(event.data);
+                            }
+                        };
+                        
+                        mediaRecorder.onstop = () => {
+                            console.log('🎤 录音结束，处理音频数据');
+                            processAudioData();
+                        };
+                        
+                        // 开始录音
+                        console.log('🎤 开始录音...');
+                        mediaRecorder.start();
+                        // 移除状态消息
+                        // addMessage('🎤 开始录音，请说话...', 'ai');
+                        console.log('✅ 录音已开始');
+                        
+                        // 10秒后自动停止
+                        setTimeout(() => {
+                            if (isRecording) {
+                                console.log('⏰ 10秒时间到，自动停止录音');
+                                stopRecording();
+                            }
+                        }, 10000);
+                    })
+                    .catch(error => {
+                        console.log('❌ 麦克风权限获取失败:', error);
+                        if (error.name === 'NotAllowedError') {
+                            addMessage('❌ 请允许麦克风权限，然后刷新页面重试', 'ai');
+                        } else if (error.name === 'NotFoundError') {
+                            addMessage('❌ 未找到麦克风设备', 'ai');
+                        } else {
+                            addMessage('❌ 麦克风访问失败，请检查设备设置', 'ai');
+                        }
+                    });
+            }
+
+            function stopRecording() {
+                if (mediaRecorder && isRecording) {
+                    console.log('🛑 停止录音');
+                    isRecording = false;
+                    mediaRecorder.stop();
+                    
+                    // 恢复按钮状态
+                    const voiceBtn = document.getElementById('voiceBtn');
+                    voiceBtn.innerHTML = '🎤 语音';
+                    voiceBtn.style.background = 'linear-gradient(135deg, #4ecdc4, #44a08d)';
+                    
+                    // 停止所有音频轨道
+                    if (mediaRecorder.stream) {
+                        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                    }
+                }
+            }
+
+            function processAudioData() {
+                console.log('🎵 processAudioData函数被调用');
+                if (audioChunks.length === 0) {
+                    console.log('❌ 没有录到音频数据');
+                    addMessage('❌ 没有录到音频数据', 'ai');
+                    return;
+                }
+                
+                console.log('🎵 处理音频数据，大小:', audioChunks.length);
+                // 移除状态消息
+                // addMessage('🎵 正在处理音频...', 'ai');
+                
+                // 创建音频blob
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                console.log('📊 音频文件大小:', audioBlob.size, 'bytes');
+                
+                // 发送音频到后端
+                console.log('📤 准备调用sendAudioToBackend');
+                sendAudioToBackend(audioBlob);
+                console.log('📤 sendAudioToBackend调用完成');
+            }
+
+            async function sendAudioToBackend(audioBlob) {
+                try {
+                    console.log('📤 准备发送音频到后端');
+                    // 移除状态消息
+                    // addMessage('📤 正在发送音频进行识别...', 'ai');
+                    
+                    // 创建FormData对象
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob, 'recording.webm');
+                    
+                    // 发送到后端
+                    const response = await fetch('/speech-to-text', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    console.log('📥 收到后端响应:', result);
+                    
+                    if (result.success) {
+                        const recognizedText = result.text;
+                        console.log('🎯 识别结果:', recognizedText);
+                        // 移除状态消息
+                        // addMessage(`🎯 识别结果: "${recognizedText}"`, 'ai');
+                        
+                        // 将识别结果作为用户消息发送给DeepSeek
+                        await sendRecognizedText(recognizedText);
+                    } else {
+                        console.error('❌ 语音识别失败:', result.error);
+                        addMessage('❌ 语音识别失败: ' + result.error, 'ai');
+                    }
+                } catch (error) {
+                    console.error('❌ 发送音频失败:', error);
+                    addMessage('❌ 发送音频失败，请重试', 'ai');
+                }
+            }
+
+            async function sendRecognizedText(text) {
+                try {
+                    console.log('📝 发送识别文本到DeepSeek:', text);
+                    // 移除状态消息
+                    // addMessage(`📝 正在处理: "${text}"`, 'ai');
+                    
+                    // 显示用户消息
+                    addMessage(text, 'user');
+                    
+                    // 显示思考指示器
+                    showTypingIndicator();
+                    
+                    // 发送到聊天API
+                    const response = await fetch('/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            message: text,
+                            generate_audio: audioEnabled
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    console.log('🎯 收到DeepSeek响应:', result);
+                    
+                    // 隐藏思考指示器
+                    hideTypingIndicator();
+                    
+                    if (result.success) {
+                        if (result.audio_path && audioEnabled) {
+                            console.log('🎯 准备添加带音频的消息:', result.audio_path);
+                            addMessageWithAudio(result.text_response, result.audio_path);
+                        } else {
+                            addMessage(result.text_response, 'ai');
+                        }
+                    } else {
+                        addMessage('抱歉，我遇到了一些问题...', 'ai');
+                    }
+                } catch (error) {
+                    hideTypingIndicator();
+                    addMessage('网络连接出现问题，请稍后再试...', 'ai');
+                }
             }
 
             function toggleAudio() {
@@ -659,6 +1024,7 @@ async def root():
             }
 
             async function sendMessage() {
+                console.log('🎯 sendMessage函数被调用');
                 const input = document.getElementById('messageInput');
                 const message = input.value.trim();
                 
@@ -666,6 +1032,10 @@ async def root():
                 
                 addMessage(message, 'user');
                 input.value = '';
+                
+                // 显示思考指示器
+                console.log('🎯 准备显示思考指示器');
+                showTypingIndicator();
                 
                 try {
                     const response = await fetch('/chat', {
@@ -680,13 +1050,23 @@ async def root():
                     });
                     
                     const result = await response.json();
+                    console.log('🎯 收到服务器响应:', result);
+                    
+                    // 隐藏思考指示器
+                    hideTypingIndicator();
                     
                     if (result.success) {
-                        addMessage(result.text_response, 'ai');
+                        if (result.audio_path && audioEnabled) {
+                            console.log('🎯 准备添加带音频的消息:', result.audio_path);
+                            addMessageWithAudio(result.text_response, result.audio_path);
+                        } else {
+                            addMessage(result.text_response, 'ai');
+                        }
                     } else {
                         addMessage('抱歉，我遇到了一些问题...', 'ai');
                     }
                 } catch (error) {
+                    hideTypingIndicator();
                     addMessage('网络连接出现问题，请稍后再试...', 'ai');
                 }
             }
@@ -813,7 +1193,7 @@ async def root():
                                 addMessage(result.messages[i].content, 'user');
                             }
                             if (i + 1 < result.messages.length) {
-                                // 添加AI回复
+                                // 添加AI回复（只显示文本，不包含音频）
                                 addMessage(result.messages[i + 1].content, 'ai');
                             }
                         }
@@ -854,7 +1234,7 @@ async def root():
             // 页面加载时检查状态
             window.onload = function() {
                 console.log('页面加载完成');
-                addMessage('✅ 页面加载完成，系统正常工作', 'ai');
+                addMessage('嗨，想我了吗？', 'ai');
                 checkStatus();
             };
         </script>
@@ -919,6 +1299,57 @@ async def get_audio(filename: str):
         return FileResponse(audio_path, media_type="audio/wav")
     else:
         raise HTTPException(status_code=404, detail="音频文件不存在")
+
+@app.post("/speech-to-text")
+async def speech_to_text(audio: UploadFile = File(...)):
+    """处理语音转文字请求"""
+    try:
+        print(f"🎤 收到音频文件: {audio.filename}, 大小: {audio.size} bytes")
+        
+        # 保存音频文件
+        temp_audio_path = f"./temp_audio_{int(time.time())}.webm"
+        with open(temp_audio_path, "wb") as f:
+            content = await audio.read()
+            f.write(content)
+        
+        print(f"💾 音频文件已保存: {temp_audio_path}")
+        
+        # 检查百度API配置
+        if not Config.BAIDU_API_KEY or not Config.BAIDU_SECRET_KEY:
+            print("❌ 百度API密钥未配置")
+            return {
+                "success": False,
+                "error": "百度API密钥未配置"
+            }
+        
+        # 使用百度语音识别
+        baidu_recognizer = BaiduSpeechRecognition()
+        recognized_text = await baidu_recognizer.recognize_audio(temp_audio_path)
+        
+        print(f"🎯 百度语音识别结果: {recognized_text}")
+        
+        # 清理临时文件
+        if os.path.exists(temp_audio_path):
+            os.remove(temp_audio_path)
+        
+        if recognized_text:
+            return {
+                "success": True,
+                "text": recognized_text,
+                "file_size": len(content)
+            }
+        else:
+            return {
+                "success": False,
+                "error": "语音识别失败，请重试"
+            }
+        
+    except Exception as e:
+        print(f"❌ 语音识别处理失败: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
