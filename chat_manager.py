@@ -6,6 +6,7 @@ from typing import List, Dict, Optional, Any
 from deepseek_client import DeepSeekClient
 from tts_client import TTSClient
 from config import Config
+import re
 
 class ChatManager:
     def __init__(self):
@@ -128,6 +129,18 @@ class ChatManager:
         self.context = context
         return {"success": True, "message": "上下文已设置"}
     
+    def clean_brackets_content(self, text: str) -> str:
+        """删除所有括号及其内容，以及引号"""
+        # 删除所有类型的括号及其内容：() [] {} 【】（）等
+        cleaned = re.sub(r'[\(\)\[\]\{\}【】（）]+.*?[\(\)\[\]\{\}【】（）]+', '', text)
+        # 删除单个括号
+        cleaned = re.sub(r'[\(\)\[\]\{\}【】（）]', '', cleaned)
+        # 删除引号："" '' "" '' 等
+        cleaned = re.sub(r'["""''""'']', '', cleaned)
+        # 清理多余的空格
+        cleaned = re.sub(r'\s+', ' ', cleaned)
+        return cleaned.strip()
+    
     def process_message(self, message: str, custom_prompt: Optional[str] = None, context: Optional[str] = None) -> Dict[str, Any]:
         """处理用户消息"""
         try:
@@ -141,6 +154,11 @@ class ChatManager:
             else:
                 response = self.deepseek_client.chat(message, self.conversation_history, used_prompt)
             
+            # 清理括号内容
+            cleaned_response = self.clean_brackets_content(response)
+            print(f"🎭 原始响应: {response}")
+            print(f"🧹 清理后: {cleaned_response}")
+            
             # 添加到对话历史
             self.conversation_history.append({"role": "user", "content": message})
             
@@ -151,7 +169,8 @@ class ChatManager:
             
             if self.tts_client:
                 audio_filename = f"response_{timestamp}.wav"
-                audio_path = self.tts_client.text_to_speech(response, audio_filename)
+                # 使用清理后的响应生成音频
+                audio_path = self.tts_client.text_to_speech(cleaned_response, audio_filename)
                 # 只返回文件名，不包含路径
                 if audio_path:
                     audio_path = os.path.basename(audio_path)
@@ -159,7 +178,7 @@ class ChatManager:
             # 保存AI回复，包含音频信息
             assistant_message = {
                 "role": "assistant", 
-                "content": response
+                "content": cleaned_response  # 使用清理后的内容
             }
             
             # 如果有音频文件，添加音频信息
@@ -174,7 +193,7 @@ class ChatManager:
             
             return {
                 "success": True,
-                "text_response": response,
+                "text_response": cleaned_response,  # 使用清理后的内容
                 "audio_path": audio_path,
                 "used_prompt": used_prompt,
                 "used_context": used_context
@@ -239,3 +258,125 @@ class ChatManager:
             "custom_prompt_set": bool(self.custom_prompt),
             "context_set": bool(self.context)
         } 
+
+    def delete_message_by_index(self, message_index: int) -> Dict[str, Any]:
+        """删除指定索引的消息"""
+        try:
+            if message_index < 0 or message_index >= len(self.conversation_history):
+                return {
+                    "success": False,
+                    "error": f"消息索引超出范围: {message_index}"
+                }
+            
+            # 获取要删除的消息
+            deleted_message = self.conversation_history[message_index]
+            
+            # 如果是assistant消息且有音频文件，检查是否需要删除音频文件
+            audio_file_to_delete = None
+            if deleted_message.get('role') == 'assistant' and 'audio_file' in deleted_message:
+                audio_file_to_delete = deleted_message['audio_file']
+            
+            # 删除消息
+            del self.conversation_history[message_index]
+            
+            # 自动保存聊天记录
+            self.save_today_history()
+            
+            result = {
+                "success": True,
+                "message": f"已删除第 {message_index + 1} 条消息",
+                "deleted_message": deleted_message,
+                "remaining_messages": len(self.conversation_history)
+            }
+            
+            # 如果删除了音频文件，添加提示
+            if audio_file_to_delete:
+                result["audio_file"] = audio_file_to_delete
+                result["note"] = "注意：对应的音频文件仍保留在output目录中"
+            
+            return result
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"删除消息失败: {str(e)}"
+            }
+    
+    def delete_message_by_timestamp(self, timestamp: int) -> Dict[str, Any]:
+        """根据时间戳删除消息"""
+        try:
+            # 查找匹配时间戳的消息
+            message_index = None
+            for i, message in enumerate(self.conversation_history):
+                if message.get('timestamp') == timestamp:
+                    message_index = i
+                    break
+            
+            if message_index is None:
+                return {
+                    "success": False,
+                    "error": f"未找到时间戳为 {timestamp} 的消息"
+                }
+            
+            return self.delete_message_by_index(message_index)
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"根据时间戳删除消息失败: {str(e)}"
+            }
+    
+    def get_message_info(self, message_index: int) -> Dict[str, Any]:
+        """获取指定消息的详细信息"""
+        try:
+            if 0 <= message_index < len(self.conversation_history):
+                message = self.conversation_history[message_index]
+                return {
+                    "success": True,
+                    "message": message,
+                    "index": message_index,
+                    "total_messages": len(self.conversation_history)
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"消息索引超出范围: {message_index}",
+                    "total_messages": len(self.conversation_history)
+                }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"获取消息信息失败: {str(e)}"
+            }
+    
+    def add_idle_message(self, message: str) -> Dict[str, Any]:
+        """添加待机消息到聊天记录"""
+        try:
+            # 创建待机消息记录
+            idle_message = {
+                "role": "assistant",
+                "content": message,
+                "timestamp": int(time.time()),
+                "is_idle_message": True
+            }
+            
+            # 添加到聊天记录
+            self.conversation_history.append(idle_message)
+            
+            # 保存到文件
+            self.save_today_history()
+            
+            print(f"💾 待机消息已保存到聊天记录")
+            
+            return {
+                "success": True,
+                "text_response": message,
+                "audio_path": None,  # 待机消息使用预设的音频文件
+                "message": "待机消息已保存"
+            }
+        except Exception as e:
+            print(f"❌ 保存待机消息失败: {e}")
+            return {
+                "success": False,
+                "error": f"保存待机消息失败: {str(e)}"
+            } 

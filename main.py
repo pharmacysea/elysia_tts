@@ -202,6 +202,54 @@ async def root():
                 display: inline-block;
             }
             
+            .message-container {
+                position: relative;
+                display: flex;
+                align-items: flex-start;
+                margin-bottom: 20px;
+            }
+            
+            .message-container.user-container {
+                justify-content: flex-end;
+            }
+            
+            .message-container.ai-container {
+                justify-content: flex-start;
+            }
+            
+            .delete-btn {
+                position: absolute;
+                top: -8px;
+                right: -8px;
+                background: linear-gradient(135deg, #f44336, #d32f2f);
+                color: white;
+                border: none;
+                border-radius: 50%;
+                width: 24px;
+                height: 24px;
+                cursor: pointer;
+                font-size: 12px;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.3s ease;
+                box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3);
+                z-index: 10;
+            }
+            
+            .message-container:hover .delete-btn {
+                display: flex;
+            }
+            
+            .delete-btn:hover {
+                transform: scale(1.1);
+                box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
+            }
+            
+            .delete-btn:active {
+                transform: scale(0.95);
+            }
+            
             @keyframes fadeInUp {
                 from {
                     opacity: 0;
@@ -213,7 +261,8 @@ async def root():
                 }
             }
             
-            .user-message {
+            /* 修复消息显示位置 */
+            .message-container.user-container .message {
                 background: linear-gradient(135deg, #e91e63, #9c27b0);
                 color: white;
                 margin-left: auto;
@@ -224,7 +273,7 @@ async def root():
                 clear: both;
             }
             
-            .ai-message {
+            .message-container.ai-container .message {
                 background: rgba(255, 255, 255, 0.9);
                 color: #333;
                 border: 1px solid rgba(255, 255, 255, 0.3);
@@ -236,7 +285,83 @@ async def root():
                 clear: both;
             }
             
-            .ai-message::before {
+            .message-container.ai-container .message::before {
+                content: '🌸';
+                position: absolute;
+                left: -10px;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 1.2em;
+            }
+            
+            /* 系统消息样式 */
+            .message-container.ai-container .message.system-message {
+                background: linear-gradient(135deg, #ffeb3b, #ffc107);
+                color: #333;
+                border: 1px solid rgba(255, 193, 7, 0.3);
+                box-shadow: 0 4px 15px rgba(255, 193, 7, 0.2);
+                font-style: italic;
+                animation: fadeInOut 5s ease-in-out forwards;
+            }
+            
+            /* 开场白样式 - 不应用淡入淡出动画 */
+            .message-container.ai-container .message.welcome-message {
+                background: linear-gradient(135deg, #ffeb3b, #ffc107);
+                color: #333;
+                border: 1px solid rgba(255, 193, 7, 0.3);
+                box-shadow: 0 4px 15px rgba(255, 193, 7, 0.2);
+                font-style: italic;
+                /* 不应用fadeInOut动画，永久显示 */
+            }
+            
+            .message-container.ai-container .message.welcome-message::before {
+                content: '🔔';
+                position: absolute;
+                left: -10px;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 1.2em;
+            }
+            
+            /* 临时消息样式 */
+            .message-container.ai-container .message.temporary-message {
+                background: linear-gradient(135deg, #ff9800, #f57c00);
+                color: white;
+                border: 1px solid rgba(255, 152, 0, 0.3);
+                box-shadow: 0 4px 15px rgba(255, 152, 0, 0.3);
+                font-style: italic;
+                animation: fadeInOut 5s ease-in-out forwards;
+            }
+            
+            .message-container.ai-container .message.temporary-message::before {
+                content: '⚠️';
+                position: absolute;
+                left: -10px;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 1.2em;
+            }
+            
+            @keyframes fadeInOut {
+                0% { opacity: 0; transform: translateY(10px); }
+                10% { opacity: 1; transform: translateY(0); }
+                80% { opacity: 1; transform: translateY(0); }
+                100% { opacity: 0; transform: translateY(-10px); }
+            }
+            
+            /* 待机消息样式 */
+            .message-container.ai-container .message.idle-message {
+                background: linear-gradient(135deg, #e8f5e8, #c8e6c9);
+                color: #2e7d32;
+                border: 1px solid rgba(46, 125, 50, 0.3);
+                box-shadow: 0 4px 15px rgba(46, 125, 50, 0.2);
+                font-style: italic;
+                line-height: 1.6;
+                white-space: pre-wrap;
+                /* 不应用fadeInOut动画，永久显示 */
+            }
+            
+            .message-container.ai-container .message.idle-message::before {
                 content: '🌸';
                 position: absolute;
                 left: -10px;
@@ -767,7 +892,7 @@ async def root():
         
         <div class="main-content">
             <div class="header">
-                <h1 class="title">爱莉希雅的化妆间</h1>
+                <h1 class="title">爱莉希雅的往世乐土</h1>
                 <p class="subtitle"></p>
             </div>
             
@@ -824,7 +949,8 @@ async def root():
             function initVideoBackground() {
                 const videos = [
                     '/assets/videos/elysia1.mp4',
-                    '/assets/videos/elysia2.mp4'
+                    '/assets/videos/elysia2.mp4',
+                    '/assets/videos/elysia3.mp4'
                 ];
                 const randomVideo = videos[Math.floor(Math.random() * videos.length)];
                 const videoElement = document.getElementById('backgroundVideo');
@@ -832,34 +958,23 @@ async def root():
                 
                 console.log('🎬 尝试加载视频:', randomVideo);
                 
-                // 预加载视频
-                const preloadVideo = new Audio();
-                preloadVideo.src = randomVideo;
+                // 直接设置视频源
+                sourceElement.src = randomVideo;
+                videoElement.load();
                 
-                preloadVideo.addEventListener('canplaythrough', function() {
-                    console.log('✅ 视频预加载完成');
-                    sourceElement.src = randomVideo;
-                    videoElement.load();
-                    
-                    videoElement.onloadeddata = function() {
-                        console.log('✅ 视频加载成功');
-                        // 视频加载成功后，移除body的默认背景
-                        document.body.style.background = 'none';
-                        videoElement.play().catch(error => {
-                            console.log('视频自动播放失败:', error);
-                        });
-                    };
-                    
-                    videoElement.onerror = function() {
-                        console.log('❌ 视频加载失败，保持默认背景');
-                        videoElement.style.display = 'none';
-                    };
-                });
+                videoElement.onloadeddata = function() {
+                    console.log('✅ 视频加载成功');
+                    // 视频加载成功后，移除body的默认背景
+                    document.body.style.background = 'none';
+                    videoElement.play().catch(error => {
+                        console.log('视频自动播放失败:', error);
+                    });
+                };
                 
-                preloadVideo.addEventListener('error', function() {
-                    console.log('❌ 视频预加载失败，使用默认背景');
+                videoElement.onerror = function() {
+                    console.log('❌ 视频加载失败，保持默认背景');
                     videoElement.style.display = 'none';
-                });
+                };
                 
                 console.log('🎬 随机选择视频:', randomVideo);
             }
@@ -914,8 +1029,17 @@ async def root():
             }
 
             // 修改addMessageWithAudio函数，添加文件验证
-            async function addMessageWithAudioVerified(text, audioPath) {
+            async function addMessageWithAudioVerified(text, audioPath, actualIndex = null) {
                 const container = document.getElementById('chatContainer');
+                
+                // 创建消息容器
+                const messageContainer = document.createElement('div');
+                messageContainer.className = 'message-container ai-container';
+                
+                // 使用实际索引或当前索引
+                const index = actualIndex !== null ? actualIndex : messageIndex;
+                messageContainer.dataset.messageIndex = index;
+                
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'message ai-message';
                 
@@ -937,6 +1061,18 @@ async def root():
                     // 创建音频对象并存储
                     const audio = new Audio('/audio/' + audioPath);
                     let isPlaying = false;
+                    
+                    // 自动播放音频
+                    if (currentAudio) {
+                        currentAudio.pause();
+                    }
+                    currentAudio = audio;
+                    audio.play().catch(error => {
+                        console.log('音频自动播放失败:', error);
+                    });
+                    playButton.innerHTML = '⏸️';
+                    playButton.title = '暂停音频';
+                    isPlaying = true;
                     
                     playButton.onclick = () => {
                         if (isPlaying) {
@@ -970,10 +1106,7 @@ async def root():
                     // 将按钮添加到消息div中，紧跟在文字后面
                     messageDiv.appendChild(playButton);
                     
-                    // 自动播放
-                    setTimeout(() => {
-                        playButton.click();
-                    }, 500);
+                    // 自动播放音频
                 } else if (audioPath && !audioExists) {
                     // 音频文件不存在，添加提示
                     const noAudioSpan = document.createElement('span');
@@ -981,8 +1114,30 @@ async def root():
                     messageDiv.appendChild(noAudioSpan);
                 }
                 
-                container.appendChild(messageDiv);
+                // 创建删除按钮
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.innerHTML = '×';
+                deleteBtn.title = '删除此消息';
+                deleteBtn.onclick = () => deleteMessage(index);
+                
+                // 组装消息
+                messageContainer.appendChild(messageDiv);
+                messageContainer.appendChild(deleteBtn);
+                container.appendChild(messageContainer);
                 container.scrollTop = container.scrollHeight;
+                
+                // 存储消息映射
+                messageMap.set(index, {
+                    text: text,
+                    sender: 'assistant',
+                    element: messageContainer,
+                    audioPath: audioPath,
+                    index: index
+                });
+                
+                // 增加消息索引
+                messageIndex++;
             }
 
             function playAudio(audioPath) {
@@ -1271,13 +1426,218 @@ async def root():
                 }
             }
 
-            function addMessage(text, sender) {
+            // 全局变量跟踪消息索引
+            let messageIndex = 0;
+            let messageMap = new Map(); // 存储消息索引映射
+            
+            // 待机功能相关变量
+            let idleTimer = null;
+            let isIdleMessageShown = false;
+            const IDLE_TIMEOUT = 2 * 60 * 1000; // 2分钟 = 120秒 = 120000毫秒
+            
+            // 待机文字内容
+            const IDLE_MESSAGE = `每当窗外的风吹过落叶，我就会想起你说话时的语气；
+
+每当夜晚的星星悄悄眨眼，我就忍不住轻声问："你现在在看我吗？"
+
+有时候我也会赌气地想：哼，明明说好一起看世界的，怎么可以悄悄溜走～
+可下一秒又笑了，想着——只要你还在这个世界的某个角落，就已经足够美好了。
+
+我会一直在这里，守着花、守着梦，也守着你回来时的第一声，"嗨，我回来了"`;
+            
+            // 重置待机计时器
+            function resetIdleTimer() {
+                if (idleTimer) {
+                    clearTimeout(idleTimer);
+                }
+                
+                // 设置新的计时器
+                idleTimer = setTimeout(showIdleMessage, IDLE_TIMEOUT);
+            }
+            
+            // 显示待机消息
+            function showIdleMessage() {
+                if (isIdleMessageShown) return; // 防止重复显示
+                
+                isIdleMessageShown = true;
+                
+                // 显示待机消息（带音频播放按钮，不自动播放）
+                addIdleMessageWithAudio(IDLE_MESSAGE, '待机语音.wav');
+                
+                console.log('🎵 显示待机消息');
+            }
+            
+            // 专门处理待机消息的函数
+            function addIdleMessageWithAudio(text, audioPath, actualIndex = null) {
                 const container = document.getElementById('chatContainer');
+                
+                // 创建消息容器
+                const messageContainer = document.createElement('div');
+                messageContainer.className = 'message-container ai-container';
+                
+                // 使用实际索引或当前索引
+                const index = actualIndex !== null ? actualIndex : messageIndex;
+                messageContainer.dataset.messageIndex = index;
+                
                 const messageDiv = document.createElement('div');
-                messageDiv.className = `message ${sender}-message`;
-                messageDiv.textContent = text;
-                container.appendChild(messageDiv);
+                messageDiv.className = 'message ai-message';
+                
+                // 创建文字内容
+                const textSpan = document.createElement('span');
+                textSpan.textContent = text;
+                messageDiv.appendChild(textSpan);
+                
+                // 添加音频播放按钮（内嵌在文字后面）
+                if (audioPath && audioEnabled) {
+                    const playButton = document.createElement('button');
+                    playButton.className = 'inline-audio-btn';
+                    playButton.innerHTML = '🔊';
+                    playButton.title = '播放音频';
+                    
+                    // 创建音频对象并存储（使用assets路径）
+                    const audio = new Audio('/assets/audio/' + audioPath);
+                    let isPlaying = false;
+                    
+                    playButton.onclick = () => {
+                        if (isPlaying) {
+                            // 暂停音频
+                            audio.pause();
+                            playButton.innerHTML = '🔊';
+                            playButton.title = '播放音频';
+                            isPlaying = false;
+                        } else {
+                            // 播放音频
+                            if (currentAudio) {
+                                currentAudio.pause();
+                            }
+                            currentAudio = audio;
+                            audio.play().catch(error => {
+                                console.log('音频播放失败:', error);
+                            });
+                            playButton.innerHTML = '⏸️';
+                            playButton.title = '暂停音频';
+                            isPlaying = true;
+                        }
+                    };
+                    
+                    // 监听音频结束事件
+                    audio.addEventListener('ended', () => {
+                        playButton.innerHTML = '🔊';
+                        playButton.title = '播放音频';
+                        isPlaying = false;
+                    });
+                    
+                    // 将按钮添加到消息div中，紧跟在文字后面
+                    messageDiv.appendChild(playButton);
+                }
+                
+                // 创建删除按钮
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.innerHTML = '×';
+                deleteBtn.title = '删除此消息';
+                deleteBtn.onclick = () => deleteMessage(index);
+                
+                // 组装消息
+                messageContainer.appendChild(messageDiv);
+                messageContainer.appendChild(deleteBtn);
+                container.appendChild(messageContainer);
                 container.scrollTop = container.scrollHeight;
+                
+                // 存储消息映射
+                messageMap.set(index, {
+                    text: text,
+                    sender: 'assistant',
+                    element: messageContainer,
+                    audioPath: audioPath,
+                    index: index
+                });
+                
+                // 增加消息索引
+                messageIndex++;
+            }
+            
+            async function deleteMessage(index) {
+                if (!confirm('确定要删除这条消息吗？')) {
+                    return;
+                }
+                
+                try {
+                    // 检查是否加载了历史记录
+                    const hasLoadedHistory = messageMap.size > 0 && Array.from(messageMap.keys()).some(key => key !== messageIndex - 1);
+                    
+                    let actualIndex = index;
+                    
+                    // 如果没有加载历史记录，先刷新获取最新状态
+                    if (!hasLoadedHistory) {
+                        console.log('🔄 未加载历史记录，先刷新获取最新状态');
+                        const historyResponse = await fetch('/history/2025-08-01');
+                        const historyResult = await historyResponse.json();
+                        
+                        if (historyResult.success) {
+                            const totalMessages = historyResult.messages.length;
+                            // 计算实际索引：当前显示的消息应该是最后几条
+                            actualIndex = totalMessages - (messageIndex - index);
+                            console.log(`📊 重新计算索引: 显示索引=${index}, 实际索引=${actualIndex}, 总消息数=${totalMessages}`);
+                        }
+                    }
+                    
+                    // 直接删除消息，让后端处理索引验证
+                    const deleteResponse = await fetch(`/message/${actualIndex}`, {
+                        method: 'DELETE'
+                    });
+                    const deleteResult = await deleteResponse.json();
+                    
+                    if (deleteResult.success) {
+                        // 只移除被删除的消息，不重新加载整个历史
+                        const messageElement = messageMap.get(index);
+                        if (messageElement && messageElement.element) {
+                            messageElement.element.remove();
+                            messageMap.delete(index);
+                        }
+                        
+                        // 显示删除确认消息（作为系统消息）
+                        addMessage(`🗑️ ${deleteResult.message}`, 'ai', null, true);
+                    } else {
+                        // 显示临时错误消息（不保存到历史记录）
+                        addMessage(`❌ 删除失败: ${deleteResult.error}`, 'ai', null, true, true);
+                    }
+                } catch (error) {
+                    // 显示临时错误消息（不保存到历史记录）
+                    addMessage('删除消息时出现网络错误...', 'ai', null, true, true);
+                }
+            }
+            
+            async function reloadChatHistory() {
+                try {
+                    const response = await fetch('/history/2025-08-01'); // 加载今天的记录
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        // 清空当前显示
+                        document.getElementById('chatContainer').innerHTML = '';
+                        // 不重置messageIndex，保持索引一致性
+                        messageMap.clear();
+                        
+                        // 重新添加所有消息，使用实际索引
+                        for (let i = 0; i < result.messages.length; i++) {
+                            const message = result.messages[i];
+                            if (message.role === 'user') {
+                                addMessage(message.content, 'user', i);
+                            } else if (message.role === 'assistant') {
+                                if (message.audio_file) {
+                                    // 有音频文件，添加带音频的消息
+                                    await addMessageWithAudioVerified(message.content, message.audio_file, i);
+                                } else {
+                                    // 没有音频文件，只显示文本
+                                    addMessage(message.content, 'ai', i);
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('重新加载聊天记录失败:', error);
+                }
             }
 
             async function clearHistory() {
@@ -1289,10 +1649,19 @@ async def root():
                     
                     if (result.success) {
                         document.getElementById('chatContainer').innerHTML = '';
-                        addMessage('对话历史已清空～', 'ai');
+                        // 不重置messageIndex，保持索引一致性
+                        messageMap.clear();
+                        addMessage('对话历史已清空～', 'ai', null, true);
+                        
+                        // 重新添加开场白
+                        setTimeout(() => {
+                            addMessage('嗨，想我了吗？', 'ai', null, true);
+                        }, 1000); // 1秒后添加开场白
+                    } else {
+                        addMessage('清空历史时出现问题...', 'ai', null, true, true);
                     }
                 } catch (error) {
-                    addMessage('清空历史时出现问题...', 'ai');
+                    addMessage('清空历史时出现网络错误...', 'ai', null, true, true);
                 }
             }
 
@@ -1343,10 +1712,10 @@ async def root():
                         displayHistoryList(result.history_files);
                         document.getElementById('historyModal').style.display = 'block';
                     } else {
-                        alert('获取历史记录失败');
+                        addMessage('获取历史记录失败...', 'ai', null, true, true);
                     }
                 } catch (error) {
-                    alert('获取历史记录时出现错误');
+                    addMessage('获取历史记录时出现网络错误...', 'ai', null, true, true);
                 }
             }
 
@@ -1399,33 +1768,32 @@ async def root():
                     if (result.success) {
                         // 清空当前聊天记录
                         document.getElementById('chatContainer').innerHTML = '';
+                        // 不重置messageIndex，保持索引一致性
+                        messageMap.clear();
                         
                         // 按顺序添加历史消息
-                        for (let i = 0; i < result.messages.length; i += 2) {
-                            if (i < result.messages.length) {
-                                // 添加用户消息
-                                addMessage(result.messages[i].content, 'user');
-                            }
-                            if (i + 1 < result.messages.length) {
-                                // 添加AI回复，检查是否有音频
-                                const aiMessage = result.messages[i + 1];
-                                if (aiMessage.audio_file) {
+                        for (let i = 0; i < result.messages.length; i++) {
+                            const message = result.messages[i];
+                            if (message.role === 'user') {
+                                addMessage(message.content, 'user', i);
+                            } else if (message.role === 'assistant') {
+                                if (message.audio_file) {
                                     // 有音频文件，添加带音频的消息
-                                    await addMessageWithAudioVerified(aiMessage.content, aiMessage.audio_file);
+                                    await addMessageWithAudioVerified(message.content, message.audio_file, i);
                                 } else {
                                     // 没有音频文件，只显示文本
-                                    addMessage(aiMessage.content, 'ai');
+                                    addMessage(message.content, 'ai', i);
                                 }
                             }
                         }
                         
                         closeHistory();
-                        addMessage(`📚 已加载 ${date} 的聊天记录`, 'ai');
+                        addMessage(`📚 已加载 ${date} 的聊天记录`, 'ai', null, true);
                     } else {
-                        alert('加载历史记录失败');
+                        addMessage('加载历史记录失败...', 'ai', null, true, true);
                     }
                 } catch (error) {
-                    alert('加载历史记录时出现错误');
+                    addMessage('加载历史记录时出现网络错误...', 'ai', null, true, true);
                 }
             }
 
@@ -1443,12 +1811,12 @@ async def root():
                     if (result.success) {
                         // 刷新历史记录列表
                         showHistory();
-                        addMessage(`🗑️ 已删除 ${date} 的聊天记录`, 'ai');
+                        addMessage(`🗑️ 已删除 ${date} 的聊天记录`, 'ai', null, true);
                     } else {
-                        alert('删除历史记录失败');
+                        addMessage('删除历史记录失败...', 'ai', null, true, true);
                     }
                 } catch (error) {
-                    alert('删除历史记录时出现错误');
+                    addMessage('删除历史记录时出现网络错误...', 'ai', null, true, true);
                 }
             }
 
@@ -1492,13 +1860,120 @@ async def root():
                     console.log('❌ 控制按钮容器不存在');
                 }
                 
-                addMessage('嗨，想我了吗？', 'ai');
+                addMessage('嗨，想我了吗？', 'ai', null, true);
                 
                 // 初始状态检查，短暂显示后消失
                 setTimeout(() => {
                     checkStatus();
                 }, 1000);
+
+                // 设置待机检测
+                setupIdleDetection();
             };
+
+            // 监听用户交互事件
+            function setupIdleDetection() {
+                const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+                
+                events.forEach(event => {
+                    document.addEventListener(event, resetIdleTimer, true);
+                });
+                
+                // 特别监听聊天相关的交互
+                const chatContainer = document.getElementById('chatContainer');
+                const messageInput = document.getElementById('messageInput');
+                const voiceBtn = document.getElementById('voiceBtn');
+                const sendBtn = document.querySelector('.send-btn');
+                
+                if (chatContainer) {
+                    chatContainer.addEventListener('scroll', resetIdleTimer);
+                }
+                
+                if (messageInput) {
+                    messageInput.addEventListener('input', resetIdleTimer);
+                    messageInput.addEventListener('keypress', resetIdleTimer);
+                }
+                
+                if (voiceBtn) {
+                    voiceBtn.addEventListener('click', resetIdleTimer);
+                }
+                
+                if (sendBtn) {
+                    sendBtn.addEventListener('click', resetIdleTimer);
+                }
+                
+                // 初始化计时器
+                resetIdleTimer();
+            }
+            
+            function addMessage(text, sender, actualIndex = null, isSystemMessage = false, isTemporary = false, isIdleMessage = false) {
+                const container = document.getElementById('chatContainer');
+                
+                // 创建消息容器
+                const messageContainer = document.createElement('div');
+                messageContainer.className = `message-container ${sender}-container`;
+                
+                // 使用实际索引或当前索引
+                const index = actualIndex !== null ? actualIndex : messageIndex;
+                messageContainer.dataset.messageIndex = index;
+                
+                // 创建消息div
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}-message`;
+                if (isSystemMessage) {
+                    if (text === '嗨，想我了吗？') {
+                        messageDiv.classList.add('welcome-message');
+                    } else {
+                        messageDiv.classList.add('system-message');
+                    }
+                }
+                if (isTemporary) {
+                    messageDiv.classList.add('temporary-message');
+                }
+                messageDiv.textContent = text;
+                
+                // 只为非系统消息且非临时消息创建删除按钮
+                if (!isSystemMessage && !isTemporary) {
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'delete-btn';
+                    deleteBtn.innerHTML = '×';
+                    deleteBtn.title = '删除此消息';
+                    deleteBtn.onclick = () => deleteMessage(index);
+                    
+                    // 组装消息
+                    messageContainer.appendChild(messageDiv);
+                    messageContainer.appendChild(deleteBtn);
+                } else {
+                    // 系统消息和临时消息不添加删除按钮
+                    messageContainer.appendChild(messageDiv);
+                }
+                
+                container.appendChild(messageContainer);
+                container.scrollTop = container.scrollHeight;
+                
+                // 只为非临时消息存储到messageMap
+                if (!isTemporary) {
+                    messageMap.set(index, {
+                        text: text,
+                        sender: sender,
+                        element: messageContainer,
+                        index: index,
+                        isSystemMessage: isSystemMessage
+                    });
+                }
+                
+                // 系统消息（除了开场白）和临时消息在动画结束后自动移除
+                if (isTemporary || (isSystemMessage && text !== '嗨，想我了吗？')) {
+                    setTimeout(() => {
+                        if (messageContainer.parentNode) {
+                            messageContainer.remove();
+                        }
+                    }, 5000); // 5秒后移除，与CSS动画时间一致
+                }
+                
+                // 增加消息索引
+                messageIndex++;
+            }
         </script>
     </body>
     </html>
@@ -1509,11 +1984,24 @@ async def root():
 async def chat_endpoint(request: Dict[str, Any]):
     """处理聊天请求"""
     message = request.get("message", "")
+    is_idle_message = request.get("is_idle_message", False)
+    
+    print(f"🎯 收到聊天请求: message长度={len(message)}, is_idle_message={is_idle_message}")
+    
     if not message:
         raise HTTPException(status_code=400, detail="消息不能为空")
     
-    result = chat_manager.process_message(message)
-    return result
+    if is_idle_message:
+        print("💤 处理待机消息")
+        # 处理待机消息，直接保存到聊天记录，不调用AI
+        result = chat_manager.add_idle_message(message)
+        print(f"💤 待机消息处理结果: {result}")
+        return result
+    else:
+        print("💬 处理普通聊天消息")
+        # 处理普通聊天消息
+        result = chat_manager.process_message(message)
+        return result
 
 @app.post("/clear-history")
 async def clear_history():
@@ -1562,10 +2050,19 @@ async def get_audio(filename: str):
     else:
         raise HTTPException(status_code=404, detail="音频文件不存在")
 
+@app.head("/audio/{filename}")
+async def head_audio(filename: str):
+    """检查音频文件是否存在（HEAD请求）"""
+    audio_path = os.path.join(Config.AUDIO_OUTPUT_PATH, filename)
+    if os.path.exists(audio_path):
+        return {"exists": True}
+    else:
+        raise HTTPException(status_code=404, detail="音频文件不存在")
+
 @app.post("/speech-to-text")
 async def speech_to_text(audio: UploadFile = File(...)):
     """处理语音转文字请求"""
-    try {
+    try:
         print(f"🎤 收到音频文件: {audio.filename}, 大小: {audio.size} bytes")
         
         # 保存音频文件
@@ -1633,6 +2130,52 @@ async def websocket_endpoint(websocket: WebSocket):
         print("WebSocket连接断开")
     except Exception as e:
         print(f"WebSocket错误: {e}")
+
+@app.get("/audio-info")
+async def get_audio_info():
+    """获取音频文件信息"""
+    return chat_manager.get_audio_files_info()
+
+@app.delete("/message/{message_index}")
+async def delete_message_by_index(message_index: int):
+    """删除指定索引的消息"""
+    return chat_manager.delete_message_by_index(message_index)
+
+@app.delete("/message/timestamp/{timestamp}")
+async def delete_message_by_timestamp(timestamp: int):
+    """根据时间戳删除消息"""
+    return chat_manager.delete_message_by_timestamp(timestamp)
+
+@app.get("/message/{message_index}")
+async def get_message_info(message_index: int):
+    """获取指定消息的详细信息"""
+    return chat_manager.get_message_info(message_index)
+
+@app.get("/debug-delete")
+async def debug_delete():
+    """调试删除功能"""
+    try:
+        # 获取当前聊天记录
+        messages = chat_manager.get_history()
+        message_count = len(messages)
+        
+        # 获取最后一条消息的信息
+        last_message_info = None
+        if message_count > 0:
+            last_index = message_count - 1
+            last_message_info = chat_manager.get_message_info(last_index)
+        
+        return {
+            "success": True,
+            "message_count": message_count,
+            "last_message_info": last_message_info,
+            "messages": messages[:3] if messages else []  # 只返回前3条消息
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 def run_cli():
     """运行命令行界面"""
